@@ -1,60 +1,20 @@
 (in-package #:cl-user)
 (defpackage #:vcf-rename
   (:use #:cl)
-  (:local-nicknames (:c :cmd)
-                    (:i :iterate))
-  (:export :check-dependencies
-           :head
-           :positions
-           :stats
-           :lines
-           :mimic-rename
-           :dash-int-dot=
-           :missing-from
-           :missing-in-range
-           :filter-and-sanitize-map
-           :rename-vcf
-           ))
+  (:export
+   :mimic-rename
+   :dash-int-dot=
+   :dash-int-underscore=
+   :missing-from
+   :missing-in-range
+   :filter-and-sanitize-map
+   :rename-vcf
+   ))
 
-(in-package :vcf-ops)
+(in-package :vcf-rename)
 
-(defun check-dependencies ()
-  "
-&&& make restartable
-"
-  ;;(assert (not (null )))
-  (c:$cmd "which bcftools"))
+;; &&& needs tests!
 
-(defun positions (vcf)
-  "
-ARGS:
-vcf: a #P to a vcf file
-DOES:
-we suppress the error 'not in header' as we are only interested in positions
-formats each position as: \"chr pos\"
-RETS:
-list of all variant positions
-
-"
-  (let* ((str (uiop:run-program
-               (format nil "bcftools query -f '%CHROM %POS\\n' ~A 2>/dev/null" vcf )
-               :output :string))
-         (separated (str:lines str)))
-    separated))
-
-(defun head (vcf)
-  (c:$cmd (format nil "bcftools head ~A" vcf)))
-
-(defun stats (vcf)
-  (c:$cmd (format nil "bcftools stats ~A" vcf)))
-
-(defun lines(vcf)
-  "takes a #P to a vcf file and returns all line-names"
-  (let* ((str (c:$cmd (format nil "bcftools query -l ~A" vcf)))
-         (separated (str:lines str)))
-    separated))
-
-;; renaming
 (defun mimic-rename (map &rest edits)
   "
 ARGS:
@@ -104,7 +64,36 @@ T if int1=int2
            (notails (mapcar #'drop-tail noheads))
 
            (same (= (parse-integer (second notails))
-                  (parse-integer (first notails))))
+                    (parse-integer (first notails))))
+           )
+      same)))
+
+(defun dash-int-underscore= (str1 str2)
+  "
+ARGS:
+str1: string like ALPHanum3r1c_sample-9999_alph
+str2: string like ALPHanum3r1c_sample-9999_alph
+DOES:
+drop all from ^ to the first -
+drop all from first _ to $
+tests an int is found
+compares integers for equality
+RETS:
+T if int1=int2
+"
+  (labels (
+           (drop-head (str)
+             (str:replace-first "^[A-Z_0-9]+-" "" str :regex t))
+           (drop-tail (str)
+             (str:replace-first "[_].*$" "" str :regex t))
+           )
+    (let* (
+           (both (list str1 str2))
+           (noheads (mapcar #'drop-head both))
+           (notails (mapcar #'drop-tail noheads))
+
+           (same (= (parse-integer (second notails))
+                    (parse-integer (first notails))))
            )
       same)))
 
@@ -194,8 +183,6 @@ alist with key, modified-value
                                (funcall fun (cdr kv))))
           alst))
 
-
-
 (defun drop-if-not-named (names alst test)
   "
 ARGS:
@@ -246,7 +233,7 @@ RETS:
 T or nil
 "
   (let* (
-        (lines (vcf-ops:lines vcf-file))
+        (lines (lines vcf-file))
         (proposed-lines (mapcar #'(lambda (kv) (car kv))
                                 proposed-map-vcf-entry))
         (same-length (= (length lines)
@@ -314,7 +301,6 @@ path to renamed vcf file
                                      :name (concatenate 'string (pathname-name in-vcf-file) "_renamed")))
         (reordered (match-order (lines in-vcf-file) proposed-map-vcf-entry :test test))
         ;; known order is correct
-
         )
 
     ;; test before proceeding
